@@ -113,35 +113,34 @@ def scroll_and_select_user(page, account_username, targets, userIDDict):
         f"账号 {account_username} 点击进入好友标签页"
     )
 
+    # 先确认抖音的主应用已经加载
     page.wait_for_selector(
-        friends_tab_selector,
+        'xpath=//*[@id="sub-app"]',
         timeout=config["browserTimeout"]
     )
 
-    page.locator(friends_tab_selector).click()
+    # 等待前端页面完成渲染
+    time.sleep(3)
+
+    # 查找好友标签
+    friends_tab = page.locator(friends_tab_selector)
+
+    if friends_tab.count() == 0:
+        logger.error(
+            f"账号 {account_username} 找不到好友标签页"
+        )
+        logger.error(
+            f"当前页面 URL: {page.url}"
+        )
+        raise RuntimeError(
+            "找不到好友标签页，可能是抖音页面没有正确加载"
+        )
+
+    friends_tab.first.click()
 
     logger.debug(
         f"账号 {account_username} 进入好友列表页面"
     )
-
-    # 等待第一个好友出现
-    first_friend_selector = (
-        'xpath=//*[@id="sub-app"]/div/div/div[2]/div[2]'
-        '/div/div/div[1]/div/div/div/ul/div/div/div[1]/li/div'
-    )
-
-    page.wait_for_selector(
-        first_friend_selector,
-        timeout=config["browserTimeout"]
-    )
-
-    page.locator(first_friend_selector).click()
-
-    logger.debug(
-        f"账号 {account_username} 已激活好友列表，"
-        f"开始滚动查找目标好友"
-    )
-
     time.sleep(config["friendListTimeout"] / 1000)
 
     found_targets = set()
