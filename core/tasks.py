@@ -234,7 +234,33 @@ def do_user_task(browser, username, cookies, targets):
             url="https://creator.douyin.com/",
         )
         # 注入 Cookie
-        context.add_cookies(cookies)
+        playwright_cookies = []
+
+        for cookie in cookies:
+            converted_cookie = {
+                "name": cookie["name"],
+                "value": cookie["value"],
+                "domain": cookie["domain"],
+                "path": cookie.get("path", "/"),
+                "secure": cookie.get("secure", False),
+                "httpOnly": cookie.get("httpOnly", False),
+            }
+
+    # Cookie-Editor / Firefox uses "unspecified", which Playwright
+    # does not accept. Only copy valid Playwright values.
+    same_site = cookie.get("sameSite")
+    if same_site in ("Strict", "Lax", "None"):
+        converted_cookie["sameSite"] = same_site
+
+    # Cookie-Editor calls this expirationDate, while Playwright
+    # calls it expires.
+    if cookie.get("expirationDate") is not None:
+        converted_cookie["expires"] = cookie["expirationDate"]
+
+    # Do NOT pass partitionKey, firstPartyDomain, storeId, or url.
+    playwright_cookies.append(converted_cookie)
+
+context.add_cookies(playwright_cookies)
 
         # 导航到消息页面
         retry_operation(
