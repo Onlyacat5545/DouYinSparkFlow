@@ -246,21 +246,14 @@ def do_user_task(browser, username, cookies, targets):
                 "httpOnly": cookie.get("httpOnly", False),
             }
 
-    # Cookie-Editor / Firefox uses "unspecified", which Playwright
-    # does not accept. Only copy valid Playwright values.
-    same_site = cookie.get("sameSite")
-    if same_site in ("Strict", "Lax", "None"):
-        converted_cookie["sameSite"] = same_site
+            # Convert Firefox sameSite values to Playwright format
+            same_site = cookie.get("sameSite")
+            if same_site in ["lax", "strict", "none"]:
+                converted_cookie["sameSite"] = same_site
 
-    # Cookie-Editor calls this expirationDate, while Playwright
-    # calls it expires.
-    if cookie.get("expirationDate") is not None:
-        converted_cookie["expires"] = cookie["expirationDate"]
+            playwright_cookies.append(converted_cookie)
 
-    # Do NOT pass partitionKey, firstPartyDomain, storeId, or url.
-    playwright_cookies.append(converted_cookie)
-
-context.add_cookies(playwright_cookies)
+        context.add_cookies(playwright_cookies)
 
         # 导航到消息页面
         retry_operation(
