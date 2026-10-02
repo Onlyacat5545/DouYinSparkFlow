@@ -1,4 +1,5 @@
 import traceback
+from pathlib import Path
 from utils.logger import setup_logger
 from utils.config import get_config, get_userData
 from core.msg_builder import build_message, build_message_with_openai
@@ -93,11 +94,13 @@ def scroll_and_select_user(page, account_username, targets, userIDDict):
     )
 
     no_more_selector = (
-        'xpath=//div[contains(@class, "no-more-tip-")]'
+        'xpath=//*[@id="sub-app"]/div/div[1]/div[2]/div[2]'
+        '//div[contains(@class, "no-more-tip-")]'
     )
 
     loading_selector = (
-        'xpath=//div[contains(@class, "semi-spin")]'
+        'xpath=//*[@id="sub-app"]/div/div[1]/div[2]/div[2]'
+        '//div[contains(@class, "semi-spin")]'
     )
 
     logger.debug(
@@ -113,33 +116,23 @@ def scroll_and_select_user(page, account_username, targets, userIDDict):
         f"账号 {account_username} 点击进入好友标签页"
     )
 
-    # 先确认抖音的主应用已经加载
-    page.wait_for_selector(
-        'xpath=//*[@id="sub-app"]',
-        timeout=config["browserTimeout"]
-    )
-
-    # 等待前端页面完成渲染
-    time.sleep(3)
-
-    # 查找好友标签
+    # 等待实际可操作的好友标签，不依赖主应用容器的尺寸或固定延时。
     friends_tab = page.locator(friends_tab_selector)
+    friends_tab.wait_for(
+        state="visible", timeout=config["browserTimeout"]
+    )
+    # 保留严格匹配，避免静默点击重复或过期的标签。
+    friends_tab.click(timeout=config["browserTimeout"])
 
-    if friends_tab.count() == 0:
-        logger.error(
-            f"账号 {account_username} 找不到好友标签页"
-        )
-        logger.error(
-            f"当前页面 URL: {page.url}"
-        )
-        raise RuntimeError(
-            "找不到好友标签页，可能是抖音页面没有正确加载"
-        )
-
-    friends_tab.first.click()
+    # 与扫描使用相同的好友选择器，等待数据就绪后再激活列表。
+    first_friend = page.locator(target_selector).first
+    first_friend.wait_for(
+        state="visible", timeout=config["browserTimeout"]
+    )
+    first_friend.click(timeout=config["browserTimeout"])
 
     logger.debug(
-        f"账号 {account_username} 进入好友列表页面"
+        f"账号 {account_username} 已激活好友列表，开始查找目标好友"
     )
     time.sleep(config["friendListTimeout"] / 1000)
 
@@ -150,6 +143,11 @@ def scroll_and_select_user(page, account_username, targets, userIDDict):
     MAX_EMPTY_SCROLLS = 10
 
     while True:
+
+        # 加载中的空列表不能算作已到底；等待可见加载提示消失。
+        page.locator(loading_selector).filter(visible=True).first.wait_for(
+            state="hidden", timeout=config["browserTimeout"]
+        )
 
         target_elements = page.locator(target_selector).all()
 
@@ -235,7 +233,7 @@ def scroll_and_select_user(page, account_username, targets, userIDDict):
                 empty_scroll_count += 1
 
             # 到达底部
-            if page.locator(no_more_selector).count() > 0:
+            if page.locator(no_more_selector).filter(visible=True).count() > 0:
 
                 logger.info(
                     f"账号 {account_username} "
@@ -266,16 +264,6 @@ def scroll_and_select_user(page, account_username, targets, userIDDict):
                     )
 
                 break
-
-            # 正在加载
-            if page.locator(loading_selector).count() > 0:
-
-                logger.debug(
-                    f"账号 {account_username} "
-                    f"好友列表正在加载..."
-                )
-
-                time.sleep(1.5)
 
             # 找滚动容器
             scrollable_element = page.locator(
@@ -331,6 +319,28 @@ def scroll_and_select_user(page, account_username, targets, userIDDict):
                 )
 
                 break
+
+
+def capture_page_diagnostics(page):
+    """在关闭浏览器前保存诊断；诊断失败不能覆盖原始异常。"""
+    try:
+        root = page.locator("#sub-app")
+        logger.error(
+            f"失败页面 URL: {page.url}; "
+            f"#sub-app 数量: {root.count()}; "
+            f"首个容器可见: {root.first.is_visible()}"
+        )
+    except Exception as diagnostic_error:
+        logger.warning(f"无法读取页面诊断: {diagnostic_error}")
+
+    try:
+        logs_dir = Path("logs")
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        screenshot_path = logs_dir / f"failure-{time.time_ns()}.png"
+        page.screenshot(path=str(screenshot_path), timeout=5000)
+        logger.error(f"失败页面截图: {screenshot_path}")
+    except Exception as diagnostic_error:
+        logger.warning(f"无法保存失败页面截图: {diagnostic_error}")
 
 
 def do_user_task(browser, account_username, cookies, targets):
@@ -521,6 +531,7 @@ def do_user_task(browser, account_username, cookies, targets):
             f"账号 {account_username} 执行任务时发生错误: {e}"
         )
 
+        capture_page_diagnostics(page)
         traceback.print_exc()
 
         raise
