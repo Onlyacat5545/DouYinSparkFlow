@@ -4,6 +4,7 @@ from utils.logger import setup_logger
 from utils.config import get_config, get_userData
 from core.msg_builder import build_message, build_message_with_openai
 from core.browser import get_browser
+from core.session import wait_for_authenticated_tab
 from playwright.sync_api import Response
 import time
 import json
@@ -118,8 +119,8 @@ def scroll_and_select_user(page, account_username, targets, userIDDict):
 
     # 等待实际可操作的好友标签，不依赖主应用容器的尺寸或固定延时。
     friends_tab = page.locator(friends_tab_selector)
-    friends_tab.wait_for(
-        state="visible", timeout=config["browserTimeout"]
+    wait_for_authenticated_tab(
+        page, friends_tab_selector, config["browserTimeout"]
     )
     # 保留严格匹配，避免静默点击重复或过期的标签。
     friends_tab.click(timeout=config["browserTimeout"])
@@ -371,18 +372,6 @@ def do_user_task(browser, account_username, cookies, targets):
         )
 
     try:
-
-        # ---------------------------------------------------------
-        # 打开抖音创作者中心
-        # ---------------------------------------------------------
-
-        retry_operation(
-            "打开抖音创作者中心",
-            page.goto,
-            retries=config["taskRetryTimes"],
-            delay=5,
-            url="https://creator.douyin.com/",
-        )
 
         # ---------------------------------------------------------
         # 注入 Cookie
