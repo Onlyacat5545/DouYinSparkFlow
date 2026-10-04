@@ -22,6 +22,9 @@ def load_functions():
         "matchMode": "nickname",
         "time": SimpleNamespace(sleep=lambda _: None, time_ns=lambda: 123),
         "Path": Path,
+        "wait_for_authenticated_tab": lambda page, selector, timeout: (
+            page.locator(selector).wait_for(state="visible", timeout=timeout)
+        ),
     }
     exec(compile(ast.Module(body=functions, type_ignores=[]), "tasks.py", "exec"),
          namespace)
