@@ -38,7 +38,7 @@ class SessionBrowserTests(unittest.TestCase):
         wait_for_authenticated_tab(self.page, "#friends", 1000)
 
     def test_delayed_tab_under_boxless_root(self):
-        self.page.set_content('<div id="sub-app" style="display:contents"></div>')
+        self.page.set_content('<div id="sub-app" style="width:0;height:0;overflow:visible"></div>')
         self.page.evaluate("""() => setTimeout(() => {
             document.querySelector('#sub-app').innerHTML =
                 '<button id="friends">好友</button>';
